@@ -1,7 +1,16 @@
 #!/bin/bash
 
-# Переменная для конфигурационного файла HAProxy
-HAPROXY_CONFIG="/etc/haproxy/haproxy.cfg"
+# Переменные
+HAPROXY_CONFIG="/etc/haproxy/haproxy.cfg"       # Конфигурационный файл HAProxy
+
+
+### ЦВЕТА ##
+ESC=$(printf '\033') RESET="${ESC}[0m" MAGENTA="${ESC}[35m" RED="${ESC}[31m" GREEN="${ESC}[32m"
+
+### Функции цветного вывода ##
+magentaprint() { echo; printf "${MAGENTA}%s${RESET}\n" "$1"; }
+errorprint() { echo; printf "${RED}%s${RESET}\n" "$1"; }
+greenprint() { echo; printf "${GREEN}%s${RESET}\n" "$1"; }
 
 
 # --------------------------------------------------------
@@ -13,27 +22,24 @@ if [ -z "$SUDO_USER" ]; then
     exit 1
 fi
 
-# Обновить список доступных пакетов.
-apt -y update
-
-# Установка HAProxy
+magentaprint "Установка HAProxy ..."
 apt -y install haproxy
 
 # Создание резервной копии конфигурационного файла:
 #  - Проверяется наличие конфигурационного файла.
 #  - Если файл существует, создается его резервная копия.
-echo "Создание резервной копии конфигурационного файла..."
+magentaprint "Создание резервной копии конфигурационного файла ..."
 if [ -f "$HAPROXY_CONFIG" ]; then
     cp "$HAPROXY_CONFIG" "$HAPROXY_CONFIG.bak"
-    echo "Резервная копия создана в файле haproxy.cfg.bak"
+    greenprint "Резервная копия создана в файле haproxy.cfg.bak"
 else 
-    echo "Конфигурационный файл не найден, пропуск создания резервной копии."
+    errorprint "Конфигурационный файл не найден, пропуск создания резервной копии."
 fi
 
 # Настройка конфигурации HAProxy:
 #  - В конфигурационный файл записывается пример настройки с фронтендом и бекендом.
-echo "Настройка конфигурации HAProxy..."
-bash -c "cat > $HAPROXY_CONFIG <<EOL
+magentaprint "Настройка конфигурации HAProxy ..."
+cat <<EOF > $HAPROXY_CONFIG
 global
     log /dev/log    local0
     log /dev/log    local1 notice
@@ -69,7 +75,7 @@ defaults
     errorfile 503 /etc/haproxy/errors/503.http
     errorfile 504 /etc/haproxy/errors/504.http
 
-# ========== Configuration ==========
+# ========== Configuration begin ==========
 
 # Настройка веб-интерфейса для мониторинга статистики.
 # Этот интерфейс будет доступен по HTTP и защищен аутентификацией.
@@ -93,22 +99,24 @@ frontend http_front
 # Обработка трафика на конечных серверах:
 backend http_back
     balance roundrobin
-    server Nginx01 10.100.10.1:8080 check
-    server Nginx02 10.100.10.2:8080 check
-    server Nginx03 10.100.10.3:8080 check
+    server nginx01 node-vm01.local:8080 check
+    server nginx02 node-vm02.local:8080 check
+    server nginx03 node-vm03.local:8080 check
 
-# ========== Configuration ==========
+# ========== Configuration end ==========
 
-EOL"
+EOF
 
-# Проверка синтаксиса конфигурационного файла HAProxy:
+magentaprint "Проверка синтаксиса конфигурационного файла HAProxy:"
 haproxy -c -f "$HAPROXY_CONFIG"
 
-# Перезапустить службу HAProxy для применения изменений
-systemctl restart haproxy
+magentaprint "Запуск и добавление в автозагрузку HAProxy"
+systemctl enable --now haproxy
 
-# Добавить HAProxy в автозапуск при загрузке системы
-systemctl enable haproxy
+magentaprint "Проверка статуса HAProxy:"
+systemctl status haproxy --no-pager
 
-echo "Установка HAProxy завершена!"
+magentaprint "Проверка версии HAProxy:"
 haproxy -v
+
+greenprint "Установка HAProxy завершена!"
