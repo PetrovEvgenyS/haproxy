@@ -82,6 +82,9 @@ systemctl enable --now haproxy
 magentaprint "Проверка статуса HAProxy:"
 systemctl status haproxy --no-pager
 
+magentaprint "Перезагрузка HAProxy для применения конфигурации"
+systemctl restart haproxy
+
 magentaprint "Проверка версии HAProxy:"
 haproxy -v
 
